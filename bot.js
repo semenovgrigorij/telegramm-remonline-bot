@@ -443,7 +443,7 @@ ${session.carRegNumber}
       showMainMenu(chatId, `✅ Існуюче замовлення успішно оброблено!\n\nВиберіть дію для створення нового замовлення:`);
       
       // Очищаем сессию пользователя (но сохраняем cityId)
-      const cityId = session.cityId; // Сохраняем cityId перед удалением сессии
+      
       delete userSessions[chatId];
       initUserSession(chatId); // Создаем новую сессию с сохраненным городом
       
@@ -465,7 +465,7 @@ async function createOrder(chatId) {
     bot.sendMessage(chatId, 'Створюю замовлення в системі...');
     
     // Формируем данные для первого API-запроса
-    const cityId = session.cityId;
+    
     const clientId = TELEGRAM_CHANNELS[cityId].client_id;
     
     // Первый API-запрос для создания заказа с повторными попытками
