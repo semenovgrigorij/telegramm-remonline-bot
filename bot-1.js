@@ -13,9 +13,6 @@ const remonlineToken = 'b2a2a651c2e2caa7a709371e449e1f357037390f';
 // Создаем новый экземпляр бота
 const bot = new TelegramBot(token, { polling: true });
 
-// Путь к файлу с данными пользователей
-const USER_DATA_FILE = path.join(__dirname, 'user_preferences.json');
-
 // ID телеграм-каналов и групп
 const TELEGRAM_CHANNELS = {
   '134397': {
@@ -38,47 +35,6 @@ const ORDER_STATUS = 1642511;
 
 // Объект для хранения данных пользователя в рамках одной сессии
 const userSessions = {};
-
-// Функция для загрузки пользовательских предпочтений из файла
-function loadUserPreferences() {
-  try {
-    if (fs.existsSync(USER_DATA_FILE)) {
-      const data = fs.readFileSync(USER_DATA_FILE, 'utf8');
-      return JSON.parse(data);
-    }
-    return {};
-  } catch (error) {
-    console.error('Ошибка при загрузке данных пользователей:', error);
-    return {};
-  }
-}
-
-// Функция для сохранения пользовательских предпочтений в файл
-function saveUserPreferences(userPreferences) {
-  try {
-    fs.writeFileSync(USER_DATA_FILE, JSON.stringify(userPreferences, null, 2), 'utf8');
-  } catch (error) {
-    console.error('Ошибка при сохранении данных пользователей:', error);
-  }
-}
-
-// Функция для сохранения предпочтения города пользователя
-function saveUserCityPreference(userId, cityId) {
-  const userPreferences = loadUserPreferences();
-  userPreferences[userId] = {
-    ...userPreferences[userId],
-    preferredCityId: cityId,
-    lastUpdated: new Date().toISOString()
-  };
-  saveUserPreferences(userPreferences);
-  console.log(`Сохранено предпочтение города для пользователя ${userId}: ${cityId}`);
-}
-
-// Функция для получения предпочтения города пользователя
-function getUserCityPreference(userId) {
-  const userPreferences = loadUserPreferences();
-  return userPreferences[userId]?.preferredCityId || null;
-}
 
 // Функция для повторных попыток API-запросов с обработкой ошибок сети
 async function retryApiRequest(apiFunction, maxRetries = 3, delay = 2000) {
@@ -146,13 +102,6 @@ function initUserSession(chatId) {
       repairDescription: null,
       orderType: null // Новый или существующий заказ
     };
-    
-    // Проверяем, есть ли у пользователя сохраненный город
-    const preferredCityId = getUserCityPreference(chatId);
-    if (preferredCityId) {
-      userSessions[chatId].cityId = preferredCityId;
-      console.log(`Для пользователя ${chatId} установлен сохраненный город: ${preferredCityId}`);
-    }
   }
   return userSessions[chatId];
 }
@@ -175,40 +124,15 @@ function showMainMenu(chatId, message = 'Виберіть дію:') {
 // Обработчик команды /start
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-  const session = initUserSession(chatId);
+  initUserSession(chatId);
   
-  // Если у пользователя уже есть выбранный город, предлагаем выбрать тип заказа
-  if (session.cityId) {
-    const cityName = TELEGRAM_CHANNELS[session.cityId].name;
-    
-    // Показываем выбор типа заказа с указанием текущего города
-    const keyboard = {
-      inline_keyboard: [
-        [{ text: '🔴 НОВЕ ЗАМОВЛЕННЯ', callback_data: 'order_new' }],
-        [{ text: '🟢 ІСНУЮЧЕ ЗАМОВЛЕННЯ', callback_data: 'order_existing' }],
-        [{ text: '🔄 Змінити місто', callback_data: 'change_city' }]
-      ]
-    };
-    
-    bot.sendMessage(chatId, `Ласкаво просимо! Ваше поточне місто: ${cityName}\nВиберіть тип замовлення:`, {
-      reply_markup: keyboard
-    });
-  } else {
-    // Если город не выбран, показываем стандартное приветствие
-    showMainMenu(chatId, 'Ласкаво просимо! Натисніть /edit, щоб вибрати місто.');
-  }
+  showMainMenu(chatId, 'Ласкаво просимо! Натисніть /edit, щоб вибрати місто.');
 });
 
 // Обработчик команды /edit
 bot.onText(/\/edit/, (msg) => {
   const chatId = msg.chat.id;
   const session = initUserSession(chatId);
-  showCitySelectionMenu(chatId);
-});
-
-// Функция для отображения меню выбора города
-function showCitySelectionMenu(chatId) {
-  const session = userSessions[chatId];
   session.step = 'choose_city';
   
   const keyboard = {
@@ -221,7 +145,7 @@ function showCitySelectionMenu(chatId) {
   bot.sendMessage(chatId, 'Виберіть місто:', {
     reply_markup: keyboard
   });
-}
+});
 
 // Обработчик callback запросов (для кнопок)
 bot.on('callback_query', async (callbackQuery) => {
@@ -240,9 +164,6 @@ bot.on('callback_query', async (callbackQuery) => {
     session.cityId = cityId;
     session.step = 'choose_order_type';
     
-    // Сохраняем предпочтение города для пользователя
-    saveUserCityPreference(chatId, cityId);
-    
     bot.answerCallbackQuery(callbackQuery.id, `Вибрано місто: ${TELEGRAM_CHANNELS[cityId].name}`);
     
     // Отображаем кнопки выбора типа заказа
@@ -256,11 +177,6 @@ bot.on('callback_query', async (callbackQuery) => {
     bot.sendMessage(chatId, 'Виберіть тип замовлення:', {
       reply_markup: keyboard
     });
-  }
-  // Обработка запроса на изменение города
-  else if (data === 'change_city') {
-    bot.answerCallbackQuery(callbackQuery.id, 'Змінити місто');
-    showCitySelectionMenu(chatId);
   }
   // Обработка выбора типа заказа
   else if (data === 'order_new' || data === 'order_existing') {
@@ -442,10 +358,8 @@ ${session.carRegNumber}
       // Уведомляем пользователя об успешной обработке
       showMainMenu(chatId, `✅ Існуюче замовлення успішно оброблено!\n\nВиберіть дію для створення нового замовлення:`);
       
-      // Очищаем сессию пользователя (но сохраняем cityId)
-      const cityId = session.cityId; // Сохраняем cityId перед удалением сессии
+      // Очищаем сессию пользователя
       delete userSessions[chatId];
-      initUserSession(chatId); // Создаем новую сессию с сохраненным городом
       
     } catch (error) {
       console.error(`Ошибка при отправке сообщения: ${error.message}`);
@@ -584,11 +498,8 @@ ${session.repairDescription}
           // Уведомляем пользователя об успешном создании заказа
           showMainMenu(chatId, `✅ Замовлення успішно створено! Номер замовлення: ${orderLabel}\n\nВиберіть дію для створення нового замовлення:`);
           
-          // Очищаем сессию пользователя (но сохраняем cityId)
-          const cityId = session.cityId; // Сохраняем cityId перед удалением сессии
+          // Очищаем сессию пользователя
           delete userSessions[chatId];
-          initUserSession(chatId); // Создаем новую сессию с сохраненным городом
-          
         } else {
           throw new Error('Не вдалося знайти створене замовлення у списку.');
         }
@@ -602,12 +513,6 @@ ${session.repairDescription}
     console.error('Ошибка при создании заказа:', error);
     showMainMenu(chatId, `❌ Виникла помилка при створенні замовлення: ${error.message}\n\nВиберіть дію:`);
   }
-}
-
-// Создаем файл для хранения данных пользователей, если он не существует
-if (!fs.existsSync(USER_DATA_FILE)) {
-  fs.writeFileSync(USER_DATA_FILE, '{}', 'utf8');
-  console.log(`Создан файл для хранения данных пользователей: ${USER_DATA_FILE}`);
 }
 
 // Запускаем бота
