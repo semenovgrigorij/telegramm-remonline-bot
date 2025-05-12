@@ -1,0 +1,8 @@
+# Игнорируем директорию node_modules
+/node_modules/
+
+# Другие часто используемые файлы и директории для Node.js проектов
+npm-debug.log*
+yarn-error.log*
+.DS_Store # Файлы macOS
+Thumbs.db # Файлы Windows
