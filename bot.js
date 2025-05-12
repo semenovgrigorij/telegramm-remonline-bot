@@ -8,7 +8,7 @@ const path = require('path');
 const token = '8026606898:AAEcpb8avNsTWe8ehwDVsAF-sKy3WiYKfwg';
 
 // Токен API Remonline
-const remonlineToken = '0a2876ec83260e03623e0ea2b8a91c16e075e6e3';
+const remonlineToken = 'b2a2a651c2e2caa7a709371e449e1f357037390f';
 
 // Создаем новый экземпляр бота
 const bot = new TelegramBot(token, { polling: true });
@@ -100,8 +100,7 @@ function initUserSession(chatId) {
       carPhoto: null,
       carRegNumber: null,
       repairDescription: null,
-      orderType: null, // Новый или существующий заказ
-      existingOrderLabel: null // Номер существующего заказа
+      orderType: null // Новый или существующий заказ
     };
   }
   return userSessions[chatId];
@@ -249,8 +248,8 @@ bot.on('text', (msg) => {
       session.step = 'enter_description';
       bot.sendMessage(chatId, 'Тепер введіть короткий опис причин ремонту.');
     } else if (session.orderType === 'order_existing') {
-      session.step = 'enter_existing_order';
-      bot.sendMessage(chatId, 'Введіть номер існуючого замовлення:');
+      // Для существующего заказа сразу отправляем информацию в каналы
+      processExistingOrder(chatId);
     }
   } 
   // Обработка ввода описания для нового заказа
@@ -268,12 +267,6 @@ bot.on('text', (msg) => {
     bot.sendMessage(chatId, 'Виберіть тип клієнта:', {
       reply_markup: keyboard
     });
-  }
-  // Обработка ввода номера существующего заказа
-  else if (session.step === 'enter_existing_order') {
-    session.existingOrderLabel = text;
-    // Отправляем данные в канал и группу для существующего заказа
-    processExistingOrder(chatId);
   }
 });
 
@@ -310,7 +303,6 @@ async function processExistingOrder(chatId) {
     const messageText = `
 [ІСНУЮЧЕ ЗАМОВЛЕННЯ]
 ${session.carRegNumber}
-${session.existingOrderLabel}
     `;
     
     // Отправляем фото с описанием
@@ -338,8 +330,8 @@ ${session.existingOrderLabel}
         // Создаем новую тему по регистрационному номеру автомобиля
         let topicId = null;
         try {
-          // Название темы: регистрационный номер + номер заказа
-          const topicName = `${session.carRegNumber} - ${session.existingOrderLabel} [Існуюче]`;
+          // Название темы: регистрационный номер + [Існуюче]
+          const topicName = `${session.carRegNumber} [Існуюче]`;
           topicId = await createTopicInGroup(groupId, topicName);
           
           // Сохраняем ID темы в TELEGRAM_CHANNELS для возможного дальнейшего использования
