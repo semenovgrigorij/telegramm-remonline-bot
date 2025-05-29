@@ -1,0 +1,15 @@
+{
+  "watch": ["bot.js"],
+  "ignore": [
+    "node_modules",
+    "user_preferences.json",
+    ".env",
+    "*.log"
+  ],
+  "ext": "js",
+  "delay": 2000,
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "verbose": true
+}
